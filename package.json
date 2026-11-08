@@ -1,0 +1,9 @@
+{
+  "name": "arena-executiva-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {"start": "node server.js"},
+  "dependencies": {"@modelcontextprotocol/sdk": "^1.12.1", "express": "^4.21.2", "exceljs": "^4.4.0"},
+  "engines": {"node": ">=20"}
+}
