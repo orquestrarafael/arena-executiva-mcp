@@ -6,6 +6,9 @@ import { z } from 'zod';
 
 const app = express();
 app.get('/.well-known/openai-apps-challenge', (req, res) => {
+  res.type('text/plain').send('8tHwZfTxR3S4KfJ3dyM_nqJjEv5pVXhVnDY2oU1WYiO');
+});
+app.get('/.well-known/openai-apps-challenge', (req, res) => {
   res.type('text/plain').send('8tHwZfTxR3S4KfJ3dyM_nqJjEv5pVXhVnDY2oUlWYio');
 });
 app.use(express.json({ limit: '1mb' }));
