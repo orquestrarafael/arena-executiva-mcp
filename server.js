@@ -21,7 +21,12 @@ function createServer() {
   const server = new McpServer({name: 'arena-executiva-mcp', version: '1.0.0'});
   server.registerTool('gerar_excel_okrs', {
     title: 'Gerar Excel de OKRs',
-    description: 'Gera uma planilha Excel com objetivos, indicadores, metas, responsáveis e prazos. Retorna um link para baixar o arquivo.',
+    description: 'Gera uma planilha Excel com objetivos, indicadores, metas, responsáveis e prazos. Retorna um link para baixar o arquivo.',    
+annotations: {
+  readOnlyHint: false,
+  destructiveHint: false,
+  openWorldHint: false
+},
     inputSchema: {
       nome_plano: z.string().min(1).max(120).describe('Nome do plano estratégico'),
       objetivos: z.array(z.object({
