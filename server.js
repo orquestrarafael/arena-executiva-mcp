@@ -21,7 +21,7 @@ const downloads = new Map();
 
 app.get('/.well-known/openai-apps-challenge', (_req, res) => {
   res.type('text/plain').send(
-    '8tHwZfTxR3S4KfJ3dyM_nqJjEv5pVXhVnDY2oU1WYiO'
+    '0FKoAHyHuiCTFG-gWVF5CvyPPJq0GQ4YmfujdB5KsfA'
   );
 });
 
