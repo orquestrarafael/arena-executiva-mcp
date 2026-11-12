@@ -1,212 +1,59 @@
 
 import express from 'express';
-import ExcelJS from 'exceljs';
-import { randomUUID } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { z } from 'zod';
 
 const app = express();
+
 app.use(express.json({ limit: '1mb' }));
 
 const port = Number(process.env.PORT || 3000);
 
-const PUBLIC_URL = (
-  process.env.PUBLIC_URL ||
-  'https://arena-executiva-mcp-1.onrender.com'
-).replace(/\/$/, '');
-
-const DOWNLOAD_TTL_MS = 10 * 60 * 1000;
-const MAX_DOWNLOADS = 100;
-const downloads = new Map();
-
-// Mantém a verificação do domínio OpenAI.
+// Preserva o token de verificação do domínio.
 app.get('/.well-known/openai-apps-challenge', (_req, res) => {
   res.type('text/plain').send(
     '0FKoAHyHuiCTFG-gWVF5CvyPPJq0GQ4YmfujdB5KsfA'
   );
 });
 
-function safeCell(value) {
-  const s = String(value ?? '');
-  return /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
-}
-
-function purgeDownloads() {
-  const now = Date.now();
-
-  for (const [id, entry] of downloads) {
-    if (entry.expiresAt <= now) {
-      downloads.delete(id);
-    }
-  }
-}
-
+// Cria um servidor MCP com apenas uma ferramenta de teste.
 function createServer() {
   const server = new McpServer({
     name: 'arena-executiva-mcp',
-    version: '1.0.4'
+    version: '1.0.5'
   });
 
-  // ÚNICA FERRAMENTA MCP: EXCEL
-
-  server.registerTool('gerar_excel_okrs', {
-    title: 'Gerar Excel de OKRs',
-
-    description:
-      'Gera uma planilha Excel com objetivos, indicadores, ' +
-      'metas, responsáveis e prazos. Retorna um link HTTPS ' +
-      'temporário para baixar o arquivo.',
-
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      openWorldHint: false
+  server.registerTool(
+    'verificar_conexao',
+    {
+      title: 'Verificar conexão Arena Executiva',
+      description:
+        'Verifica se o servidor MCP da Arena Executiva está funcionando.',
+      inputSchema: {}
     },
-
-    inputSchema: {
-      nome_plano: z.string().min(1).max(120),
-
-      objetivos: z.array(z.object({
-        objetivo: z.string().min(1),
-        indicador: z.string().default(''),
-        meta: z.string().default(''),
-        responsavel: z.string().default(''),
-        prazo: z.string().default('')
-      })).min(1).max(100)
-    }
-  }, async ({ nome_plano, objetivos }) => {
-    try {
-      purgeDownloads();
-
-      if (downloads.size >= MAX_DOWNLOADS) {
-        return {
-          isError: true,
-          content: [{
-            type: 'text',
-            text: 'Limite temporário de arquivos atingido.'
-          }]
-        };
-      }
-
-      const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet('OKRs');
-
-      ws.columns = [
-        { header: 'Plano', key: 'plano', width: 30 },
-        { header: 'Objetivo', key: 'objetivo', width: 45 },
-        { header: 'Indicador (KR)', key: 'indicador', width: 38 },
-        { header: 'Meta', key: 'meta', width: 25 },
-        { header: 'Responsável', key: 'responsavel', width: 28 },
-        { header: 'Prazo', key: 'prazo', width: 22 }
-      ];
-
-      ws.getRow(1).font = {
-        bold: true,
-        color: { argb: 'FFFFFFFF' }
-      };
-
-      ws.getRow(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF17365D' }
-      };
-
-      for (const o of objetivos) {
-        ws.addRow({
-          plano: safeCell(nome_plano),
-          objetivo: safeCell(o.objetivo),
-          indicador: safeCell(o.indicador),
-          meta: safeCell(o.meta),
-          responsavel: safeCell(o.responsavel),
-          prazo: safeCell(o.prazo)
-        });
-      }
-
-      ws.autoFilter = 'A1:F1';
-
-      ws.views = [{
-        state: 'frozen',
-        ySplit: 1
-      }];
-
-      const buffer = Buffer.from(
-        await wb.xlsx.writeBuffer()
-      );
-
-      const id = randomUUID();
-
-      downloads.set(id, {
-        buffer,
-        expiresAt: Date.now() + DOWNLOAD_TTL_MS
-      });
-
-      const url = `${PUBLIC_URL}/downloads/${id}`;
-
-      return {
-        content: [{
+    async () => ({
+      content: [
+        {
           type: 'text',
-          text:
-            'Excel de OKRs gerado com sucesso. ' +
-            `Link válido por 10 minutos: ${url}`
-        }]
-      };
-    } catch (error) {
-      console.error('Excel generation failed:', error);
-
-      return {
-        isError: true,
-        content: [{
-          type: 'text',
-          text: 'Não foi possível gerar o Excel.'
-        }]
-      };
-    }
-  });
+          text: 'Conexão MCP da Arena Executiva funcionando.'
+        }
+      ]
+    })
+  );
 
   return server;
 }
 
-// VERIFICAÇÃO DE DISPONIBILIDADE
-
+// Página de disponibilidade.
 app.get('/', (_req, res) => {
   res.json({
     name: 'Arena Executiva MCP',
     status: 'ok',
-    endpoint: '/mcp',
-    tools: ['gerar_excel_okrs']
+    endpoint: '/mcp'
   });
 });
 
-// DOWNLOAD DO EXCEL
-
-app.get('/downloads/:id', (req, res) => {
-  const entry = downloads.get(req.params.id);
-
-  if (!entry || entry.expiresAt <= Date.now()) {
-    downloads.delete(req.params.id);
-
-    return res.status(404).send(
-      'Arquivo não encontrado ou link expirado.'
-    );
-  }
-
-  res.set({
-    'Content-Type':
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-
-    'Content-Disposition':
-      'attachment; filename="arena-okrs.xlsx"',
-
-    'Cache-Control': 'no-store',
-    'X-Content-Type-Options': 'nosniff'
-  });
-
-  res.send(entry.buffer);
-});
-
-// COMUNICAÇÃO MCP VIA POST
-
+// Endpoint MCP.
 app.post('/mcp', async (req, res) => {
   const server = createServer();
 
